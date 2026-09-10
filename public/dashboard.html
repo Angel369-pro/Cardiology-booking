@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Doctor dashboard</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+    .appt { border: 1px solid #ccc; padding: 10px; margin: 6px 0; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .appt select { margin-left: 10px; }
+    #newSlotForm input { margin-right: 8px; padding: 6px; }
+    section { margin-bottom: 30px; }
+    #loginForm input { display: block; margin: 6px 0; padding: 6px; width: 100%; box-sizing: border-box; }
+  </style>
+</head>
+<body>
+
+  <div id="loginForm">
+    <h2>Doctor log in</h2>
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Log in</button>
+    <div id="loginStatus"></div>
+  </div>
+
+  <div id="dashboard" style="display:none;">
+    <h1>Doctor dashboard</h1>
+
+    <section>
+      <h2>Today's appointments</h2>
+      <div id="appointments">Loading...</div>
+    </section>
+
+    <section>
+      <h2>Add availability</h2>
+      <form id="newSlotForm">
+        <input type="datetime-local" id="startTime" required>
+        <input type="datetime-local" id="endTime" required>
+        <button type="submit">Add slot</button>
+      </form>
+      <div id="slotStatus"></div>
+    </section>
+  </div>
+
+  <script>
+    async function login() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const statusEl = document.getElementById('loginStatus');
+
+      const res = await fetch('/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role: 'doctor' })
+      });
+
+      if (!res.ok) {
+        statusEl.textContent = 'Invalid email or password';
+        return;
+      }
+
+      const { token } = await res.json();
+      localStorage.setItem('token', token);
+      showDashboard();
+    }
+
+    function showDashboard() {
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      loadAppointments();
+    }
+
+    function authHeaders() {
+      const token = localStorage.getItem('token');
+      return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+    }
+
+    async function loadAppointments() {
+      const res = await fetch('/appointments/mine', { headers: authHeaders() });
+      const appts = await res.json();
+      const container = document.getElementById('appointments');
+
+      if (!appts.length) {
+        container.textContent = 'No appointments today.';
+        return;
+      }
+
+      container.innerHTML = '';
+      appts.forEach(appt => {
+        const div = document.createElement('div');
+        div.className = 'appt';
+        div.innerHTML = `
+          <span>${new Date(appt.start_time).toLocaleTimeString()} — Patient #${appt.patient_id} (${appt.reason || 'no reason given'})</span>
+          <select onchange="updateStatus(${appt.id}, this.value)">
+            <option value="scheduled" ${appt.status === 'scheduled' ? 'selected' : ''}>Scheduled</option>
+            <option value="completed" ${appt.status === 'completed' ? 'selected' : ''}>Completed</option>
+            <option value="cancelled" ${appt.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+            <option value="no_show" ${appt.status === 'no_show' ? 'selected' : ''}>No-show</option>
+          </select>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    async function updateStatus(id, status) {
+      await fetch(`/appointments/${id}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ status })
+      });
+      loadAppointments();
+    }
+
+    document.getElementById('newSlotForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const start_time = document.getElementById('startTime').value;
+      const end_time = document.getElementById('endTime').value;
+      const statusEl = document.getElementById('slotStatus');
+
+      const res = await fetch('/availability', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ start_time, end_time })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        statusEl.textContent = err.error;
+        return;
+      }
+
+      statusEl.textContent = 'Slot added.';
+      e.target.reset();
+    };
+
+    if (localStorage.getItem('token')) {
+      showDashboard();
+    }
+  </script>
+</body>
+</html>
