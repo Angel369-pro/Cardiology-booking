@@ -36,8 +36,8 @@
 
     async function register() {
       const full_name = prompt('Full name?');
-      const email = document.getElementById('email').value || prompt('Email?');
-      const password = document.getElementById('password').value || prompt('Password?');
+      const email =  prompt('Email?');
+      const password =  prompt('Password?');
       if (!full_name || !email || !password) return;
 
       const res = await fetch('/auth/register/patient', {
