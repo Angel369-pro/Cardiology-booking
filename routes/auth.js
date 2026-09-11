@@ -19,6 +19,7 @@ router.post('/register/patient', async (req, res) => {
     const token = generateToken({ id: result.rows[0].id, role: 'patient' });
     res.status(201).json({ user: result.rows[0], token });
   } catch (err) {
+    console.error(err);
     if (err.code === '23505') return res.status(409).json({ error: 'Email already registered' });
     res.status(500).json({ error: 'Registration failed' });
   }
