@@ -41,29 +41,9 @@ router.post('/register/doctor', async (req, res) => {
     const token = generateToken({ id: result.rows[0].id, role: 'doctor' });
     res.status(201).json({ user: result.rows[0], token });
   } catch (err) {
+    console.error(err);
     if (err.code === '23505') return res.status(409).json({ error: 'Email already registered' });
     res.status(500).json({ error: 'Registration failed' });
-  }
-});
-
-router.post('/login', async (req, res) => {
-  const { email, password, role } = req.body; // role: 'patient' or 'doctor'
-  const table = role === 'doctor' ? 'doctors' : 'patients';
-  // Note: `table` is only ever 'doctors' or 'patients' from the ternary above,
-  // never raw user input, so string interpolation here is safe.
-
-  try {
-    const result = await pool.query(`SELECT * FROM ${table} WHERE email = $1`, [email]);
-    const user = result.rows[0];
-
-    if (!user || !(await comparePassword(password, user.password_hash))) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const token = generateToken({ id: user.id, role: role === 'doctor' ? 'doctor' : 'patient' });
-    res.json({ token, user: { id: user.id, full_name: user.full_name, email: user.email } });
-  } catch (err) {
-    res.status(500).json({ error: 'Login failed' });
   }
 });
 
